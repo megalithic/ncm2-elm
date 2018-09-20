@@ -13,13 +13,13 @@ let g:ncm2_elm#source = extend(
       \ 'name': 'elm',
       \ 'ready': 0,
       \ 'priority': 9,
-      \ 'mark': 'rs',
+      \ 'mark': 'elm',
       \ 'early_cache': 1,
       \ 'subscope_enable': 1,
-      \ 'scope': ['rust'],
-      \ 'word_pattern': '[\w/]+',
-      \ 'complete_pattern': ['\.', '::'],
-      \ 'on_complete': 'ncm2_elm#on_complete',
+      \ 'scope': ['elm'],
+      \ 'word_pattern': ['[\w/]+', '[\w\-]+'],
+      \ 'complete_pattern': ['\.', '::', ':\s*'],
+      \ 'on_complete': ['ncm2_elm#on_complete', 'ncm2#on_complete#omni', 'elm#Complete'],
       \ 'on_warmup': 'ncm2_elm#on_warmup',
       \ }, 'keep')
 

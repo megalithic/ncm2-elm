@@ -29,7 +29,6 @@ class Source(Ncm2Source):
         return ret
 
     def on_complete(self, ctx, lines):
-
         src = "\n".join(lines)
         src = self.get_src(src, ctx)
         src = src.encode('utf-8')
@@ -40,11 +39,14 @@ class Source(Ncm2Source):
         filepath = ctx['filepath']
         startccol = ctx['startccol']
 
-        args = [
-            'elm-oracle', 'complete-with-snippet',
-            str(lnum),
-            str(bcol - 1), filepath, '-'
-        ]
+        query = typed.lstrip(" \t\'\"")
+        args = ['elm-oracle', filepath, query]
+
+        # args = [
+        #     'elm-oracle', 'complete-with-snippet',
+        #     str(lnum),
+        #     str(bcol - 1), filepath, '-'
+        # ]
 
         proj_dir = self._project_root(filepath)
         proc = Popen(
