@@ -1,1 +1,1 @@
-call ncm2_racer#init()
+call ncm2_elm#init()

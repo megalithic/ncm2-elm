@@ -12,29 +12,21 @@ logger = getLogger(__name__)
 class Source(Ncm2Source):
     def check(self):
         from distutils.spawn import find_executable
-        if not find_executable("racer"):
+        if not find_executable("elm-oracle"):
             self.nvim.call(
-                'ncm2_racer#error',
-                ('Can not find racer for completion, '
-                 'please check out https://github.com/racer-rust/racer'))
-        if not self._check_rust_src_path():
-            self.nvim.call('ncm2_racer#error', (
-                '$RUST_SRC_PATH not defined, '
-                'please read https://github.com/racer-rust/racer#configuration'
-            ))
+                'ncm2_elm#error',
+                ('Unable to find elm-oracle for completion, '
+                 'please visit https://github.com/elmcast/elm-oracle#installation for installation details.'))
 
-    def _check_rust_src_path(self):
-        if "RUST_SRC_PATH" in os.environ:
-            return os.environ["RUST_SRC_PATH"]
-        # auto detect, if user already run `rustup component add rust-src`
-        found = glob.glob(
-            os.path.expanduser(
-                "~/.rustup/toolchains/*/lib/rustlib/src/rust/src"))
-        if found:
-            logger.info("detect RUST_SRC_PATH as [%s]", found[0])
-            os.environ["RUST_SRC_PATH"] = found[0]
-            return found[0]
-        return None
+    def _project_root(self, filepath):
+        ret = path.dirname(filepath)
+        while ret != '/' and not path.exists(path.join(ret, 'elm-package.json')):
+            ret = path.dirname(ret)
+
+        if ret == '/':
+            return path.dirname(filepath)
+
+        return ret
 
     def on_complete(self, ctx, lines):
 
@@ -44,25 +36,29 @@ class Source(Ncm2Source):
         lnum = ctx['lnum']
         ccol = ctx['ccol']
         bcol = ctx['bcol']
+        typed = ctx['typed']
         filepath = ctx['filepath']
         startccol = ctx['startccol']
 
         args = [
-            'racer', 'complete-with-snippet',
+            'elm-oracle', 'complete-with-snippet',
             str(lnum),
             str(bcol - 1), filepath, '-'
         ]
+
+        proj_dir = self._project_root(filepath)
         proc = Popen(
             args=args,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL)
+            stderr=subprocess.DEVNULL
+            cwd=proj_dir)
 
         result, errs = proc.communicate(src, timeout=30)
 
         logger.debug("args: %s, result: [%s]", args, result.decode())
 
-        lines = result.decode('utf-8').splitlines()
+        # lines = result.decode('utf-8').splitlines()
 
         # typical output example:
         #   PREFIX 47,51,Stri
@@ -73,36 +69,47 @@ class Source(Ncm2Source):
         #   MATCH new;new();352;11;/data/roxma/.multirust/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/src/libstd/../libcollections/string.rs;Function;pub fn new() -> String;"Creates a new empty `String`.\n\nGiven that the `String` is empty, this will not allocate any initial\nbuffer. While that means that this initial operation is very\ninexpensive, but may cause excessive allocation later, when you add\ndata. If you have an idea of how much data the `String` will hold,\nconsider the [`with_capacity()`] method to prevent excessive\nre-allocation.\n\n[`with_capacity()`]: #method.with_capacity\n\n# Examples\n\nBasic usage:\n\n```\nlet s = String::new()\;\n```"
         #   MATCH with_capacity;with_capacity(${1:capacity});395;11;/data/roxma/.multirust/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/src/libstd/../libcollections/string.rs;Function;pub fn with_capacity(capacity: usize) -> String;"Creates a new empty `String` with a particular capacity.\n\n`String`s have an internal buffer to hold their data. The capacity is\nthe length of that buffer, and can be queried with the [`capacity()`]\nmethod. This method creates an empty `String`, but one with an initial\nbuffer that can hold `capacity` bytes. This is useful when you may be\nappending a bunch of data to the `String`, reducing the number of\nreallocations it needs to do.\n\n[`capacity()`]: #method.capacity\n\nIf the given capacity is `0`, no allocation will occur, and this method\nis identical to the [`new()`] method.\n\n[`new()`]: #method.new\n\n# Examples\n\nBasic usage:\n\n```\nlet mut s = String::with_capacity(10)\;\n\n// The String contains no chars, even though it has capacity for more\nassert_eq!(s.len(), 0)\;\n\n// These are all done without reallocating...\nlet cap = s.capacity()\;\nfor i in 0..10 {\n    s.push(\'a\')\;\n}\n\nassert_eq!(s.capacity(), cap)\;\n\n// ...but this may make the vector reallocate\ns.push(\'a\')\;\n```"
         #   END
+
+        result = json.loads(result.decode('utf-8'))
+
+        if not result:
+            return
+
         matches = []
-        for line in lines:
 
-            fields = line.split(";")
-            tword = fields[0].split(' ')
+        # for line in lines:
+        #     fields = line.split(";")
+        #     tword = fields[0].split(' ')
 
-            if tword[0] != "MATCH":
-                if tword == "prefix":
-                    startccol = ccol - len(fields[2])
-                continue
+        #     if tword[0] != "MATCH":
+        #         if tword == "prefix":
+        #             startccol = ccol - len(fields[2])
+        #         continue
 
-            t, word = tword
+        #     t, word = tword
 
-            match = dict(word=word)
+        #     match = dict(word=word)
 
-            menu = fields[6]
-            if "RUST_SRC_PATH" in os.environ and menu.startswith(
-                    os.environ["RUST_SRC_PATH"]):
-                menu = menu[len(os.environ["RUST_SRC_PATH"]):]
+        #     menu = fields[6]
 
-            match['menu'] = menu
-            match = self.match_formalize(ctx, match)
+        #     match['menu'] = menu
+        #     match = self.match_formalize(ctx, match)
 
-            snippet = fields[1]
-            if snippet != word:
-                ud = match['user_data']
-                ud['is_snippet'] = 1
-                ud['snippet'] = snippet
+        #     snippet = fields[1]
+        #     if snippet != word:
+        #         ud = match['user_data']
+        #         ud['is_snippet'] = 1
+        #         ud['snippet'] = snippet
 
-            matches.append(match)
+        #     matches.append(match)
+
+        for item in result:
+            word = item['name']
+            menu = item.get('signature', item.get('fullName',''))
+            m = { 'word': word, 'menu': menu, 'info': item['comment'] }
+
+            matches.append(m)
+
 
         logger.info("matches: [%s]", matches)
 
